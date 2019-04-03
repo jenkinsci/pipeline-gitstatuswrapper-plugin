@@ -18,9 +18,9 @@ stage('EZPZ Updates') {
 stage('Annoying status updates') {
     script {
       try {
-        githubNotify(credentialsId: 'github-token', gitHubContext: 'Status', description: 'Validating', status: 'PENDING')
+        githubNotify(credentialsId: 'github-token', context: 'Status', description: 'Validating', status: 'PENDING')
         sh "./do_stuff.sh"
-        githubNotify(credentialsId: 'github-token', gitHubContext: 'Status', description: 'Validating', status: 'SUCCESS')
+        githubNotify(credentialsId: 'github-token', context: 'Status', description: 'Validating', status: 'SUCCESS')
       }
       catch (Exception e) {
         githubNotify(credentialsId: 'github-token', gitHubContext: 'Status', description: 'Validating', status: 'FAILURE')
@@ -36,7 +36,7 @@ The available parameters are:
 | -------------   |:-------------|
 | _credentialsId_ | The id of the github's credentials to use, must be of type UsernameAndPassword and contain the password or a personal access token. |
 | _description_   | A description that will appear at the notification |
-| _gitHubContext_ | The status gitHubContext. GitHub uses the gitHubContext to differentiate statuses |
+| _gitHubContext_ | The status context. GitHub uses the context to differentiate statuses |
 | _sha_           | The sha that identifies the commit to set the status on |
 | _repo_          | The repo that owns the commit we want to set the status on |
 | _account_       | The account that owns the repository |
@@ -183,3 +183,8 @@ ok
 [GitStatusWrapper] - Setting Failure status for gitStatusWrapper on commit ffg2ab130985981ac0735f9789e19750f7200bd6
 ...
 ```
+
+# No pipeline? No Problem
+This plugin also includes a builder plugin, so you can wrap your freestyle projects with the same goodness as the pipeline version.
+
+<img src="src/main/webapp/img/builder_example.png">
