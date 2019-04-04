@@ -282,11 +282,8 @@ public final class GitStatusWrapperStep extends Step {
               this.step.getRepo(),
               run.getParent());
 
-      this.commit = GitHubHelper
-          .getCommitIfValid(this.step.getCredentialsId(), this.step.getGitApiUrl(),
-              JenkinsHelpers.getProxy(this.step.getGitApiUrl()), this.step.getAccount(),
-              this.step.getRepo(),
-              this.step.getSha(), run.getParent());
+      this.commit = repository.getCommit(this.step.getSha());
+
       this.setStatus(GHCommitState.PENDING);
 
       EnvVars envOverride = new EnvVars();
