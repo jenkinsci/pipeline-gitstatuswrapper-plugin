@@ -23,6 +23,16 @@ SOFTWARE.
  */
 package org.jenkinsci.plugins.gitstatuswrapper.jenkins;
 
+import com.cloudbees.plugins.credentials.CredentialsProvider;
+import com.cloudbees.plugins.credentials.common.AbstractIdCredentialsListBoxModel;
+import com.cloudbees.plugins.credentials.common.IdCredentials;
+import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
+import com.cloudbees.plugins.credentials.common.UsernamePasswordCredentials;
+import hudson.model.Item;
+import hudson.model.Job;
+import hudson.security.ACL;
+import hudson.util.ListBoxModel;
+import java.util.List;
 import jenkins.model.Jenkins;
 
 import javax.annotation.Nonnull;
@@ -50,4 +60,17 @@ public class JenkinsHelpers {
       return jenkins.proxy.createProxy(host);
     }
   }
+
+  public static ListBoxModel fillCredentialsIdItems(Item project){
+    Jenkins.get().checkPermission(Job.CONFIGURE);
+    AbstractIdCredentialsListBoxModel result = new StandardListBoxModel();
+    List<UsernamePasswordCredentials> credentialsList = CredentialsProvider
+        .lookupCredentials(UsernamePasswordCredentials.class, project, ACL.SYSTEM);
+    for (UsernamePasswordCredentials credential : credentialsList) {
+      result = result.with((IdCredentials) credential);
+    }
+    return result;
+  }
+
+
 }

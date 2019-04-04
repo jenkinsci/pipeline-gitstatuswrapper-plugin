@@ -23,26 +23,34 @@ SOFTWARE.
  */
 package org.jenkinsci.plugins.gitstatuswrapper.pipeline;
 
-import com.cloudbees.plugins.credentials.CredentialsProvider;
-import com.cloudbees.plugins.credentials.common.AbstractIdCredentialsListBoxModel;
-import com.cloudbees.plugins.credentials.common.IdCredentials;
-import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
-import com.cloudbees.plugins.credentials.common.UsernamePasswordCredentials;
 import hudson.EnvVars;
 import hudson.Extension;
 import hudson.model.Item;
 import hudson.model.Run;
 import hudson.model.TaskListener;
-import hudson.security.ACL;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.annotation.Nonnull;
 import jenkins.YesNoMaybe;
 import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.plugins.displayurlapi.DisplayURLProvider;
 import org.jenkinsci.plugins.gitstatuswrapper.Messages;
 import org.jenkinsci.plugins.gitstatuswrapper.github.GitHubHelper;
 import org.jenkinsci.plugins.gitstatuswrapper.jenkins.JenkinsHelpers;
-import org.jenkinsci.plugins.workflow.steps.*;
+import org.jenkinsci.plugins.workflow.steps.BodyExecution;
+import org.jenkinsci.plugins.workflow.steps.BodyExecutionCallback;
+import org.jenkinsci.plugins.workflow.steps.EnvironmentExpander;
+import org.jenkinsci.plugins.workflow.steps.Step;
+import org.jenkinsci.plugins.workflow.steps.StepContext;
+import org.jenkinsci.plugins.workflow.steps.StepDescriptor;
+import org.jenkinsci.plugins.workflow.steps.StepExecution;
 import org.kohsuke.github.GHCommit;
 import org.kohsuke.github.GHCommitState;
 import org.kohsuke.github.GHRepository;
@@ -50,12 +58,7 @@ import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.QueryParameter;
-
-import javax.annotation.Nonnull;
-import java.io.IOException;
-import java.util.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.kohsuke.stapler.verb.POST;
 
 
 public final class GitStatusWrapperStep extends Step {
@@ -216,27 +219,14 @@ public final class GitStatusWrapperStep extends Step {
     }
 
     public ListBoxModel doFillCredentialsIdItems(@AncestorInPath Item project) {
-      AbstractIdCredentialsListBoxModel result = new StandardListBoxModel();
-      List<UsernamePasswordCredentials> credentialsList = CredentialsProvider
-          .lookupCredentials(UsernamePasswordCredentials.class, project, ACL.SYSTEM);
-      for (UsernamePasswordCredentials credential : credentialsList) {
-        result = result.with((IdCredentials) credential);
-      }
-      return result;
+      return JenkinsHelpers.fillCredentialsIdItems(project);
     }
 
+    @POST
     public FormValidation doTestConnection(
         @QueryParameter("credentialsId") final String credentialsId,
         @QueryParameter("gitApiUrl") String gitApiUrl, @AncestorInPath Item context) {
-      try {
-        gitApiUrl = (StringUtils.isEmpty(gitApiUrl)) ? GitHubHelper.DEFAULT_GITHUB_API_URL
-            : gitApiUrl;
-        GitHubHelper.getGitHubIfValid(credentialsId, gitApiUrl, JenkinsHelpers.getProxy(gitApiUrl),
-            context);
-        return FormValidation.ok("Success");
-      } catch (Exception e) {
-        return FormValidation.error(e, e.getMessage());
-      }
+      return GitHubHelper.testApiConnection(credentialsId, gitApiUrl, context);
     }
   }
 

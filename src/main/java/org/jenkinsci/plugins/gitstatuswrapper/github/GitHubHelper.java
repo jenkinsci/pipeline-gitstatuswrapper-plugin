@@ -26,27 +26,29 @@ package org.jenkinsci.plugins.gitstatuswrapper.github;
 import com.cloudbees.plugins.credentials.common.UsernamePasswordCredentials;
 import hudson.model.Item;
 import hudson.model.ItemGroup;
+import hudson.model.Job;
 import hudson.model.Run;
 import hudson.plugins.git.util.BuildData;
+import hudson.util.FormValidation;
+import java.io.IOException;
+import java.net.Proxy;
+import javax.annotation.Nonnull;
+import jenkins.model.Jenkins;
 import jenkins.plugins.git.AbstractGitSCMSource;
 import jenkins.scm.api.SCMRevision;
 import jenkins.scm.api.SCMRevisionAction;
 import jenkins.scm.api.SCMSource;
 import jenkins.scm.api.SCMSourceOwner;
-import org.jenkinsci.plugins.gitstatuswrapper.credentials.CredentialsHelper;
 import org.jenkinsci.plugins.github.util.BuildDataHelper;
 import org.jenkinsci.plugins.github_branch_source.GitHubSCMSource;
 import org.jenkinsci.plugins.github_branch_source.PullRequestSCMRevision;
+import org.jenkinsci.plugins.gitstatuswrapper.Messages;
+import org.jenkinsci.plugins.gitstatuswrapper.credentials.CredentialsHelper;
+import org.jenkinsci.plugins.gitstatuswrapper.jenkins.JenkinsHelpers;
 import org.kohsuke.github.GHCommit;
 import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GitHub;
 import org.kohsuke.github.GitHubBuilder;
-
-import javax.annotation.Nonnull;
-import java.io.IOException;
-import java.net.Proxy;
-
-import org.jenkinsci.plugins.gitstatuswrapper.Messages;
 
 public class GitHubHelper {
 
@@ -181,6 +183,18 @@ public class GitHubHelper {
       throw new IllegalArgumentException(UNABLE_TO_INFER_DATA);
     } else {
       throw new IllegalArgumentException(UNABLE_TO_INFER_DATA);
+    }
+  }
+
+  public static FormValidation testApiConnection(final String credentialsId, final String gitApiUrl,
+      Item context) {
+    Jenkins.get().checkPermission(Job.CONFIGURE);
+    try {
+      GitHubHelper.getGitHubIfValid(credentialsId, gitApiUrl, JenkinsHelpers.getProxy(gitApiUrl),
+          context);
+      return FormValidation.ok("Success");
+    } catch (Exception e) {
+      return FormValidation.error(e.getMessage());
     }
   }
 }

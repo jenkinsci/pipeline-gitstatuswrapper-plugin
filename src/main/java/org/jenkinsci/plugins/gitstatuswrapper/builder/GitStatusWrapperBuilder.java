@@ -23,19 +23,23 @@ SOFTWARE.
  */
 package org.jenkinsci.plugins.gitstatuswrapper.builder;
 
-import com.cloudbees.plugins.credentials.CredentialsProvider;
-import com.cloudbees.plugins.credentials.common.AbstractIdCredentialsListBoxModel;
-import com.cloudbees.plugins.credentials.common.IdCredentials;
-import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
-import com.cloudbees.plugins.credentials.common.UsernamePasswordCredentials;
-import hudson.*;
-import hudson.model.*;
-import hudson.security.ACL;
-import hudson.tasks.*;
+import hudson.EnvVars;
+import hudson.Extension;
+import hudson.Launcher;
+import hudson.Util;
+import hudson.model.AbstractBuild;
+import hudson.model.AbstractProject;
+import hudson.model.BuildListener;
+import hudson.model.Item;
+import hudson.tasks.BuildStep;
+import hudson.tasks.BuildStepDescriptor;
+import hudson.tasks.Builder;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
 import hudson.util.VariableResolver;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.plugins.displayurlapi.DisplayURLProvider;
 import org.jenkinsci.plugins.gitstatuswrapper.Messages;
@@ -48,9 +52,7 @@ import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.QueryParameter;
-
-import java.io.IOException;
-import java.util.List;
+import org.kohsuke.stapler.verb.POST;
 
 public class GitStatusWrapperBuilder extends Builder {
 
@@ -350,26 +352,14 @@ public class GitStatusWrapperBuilder extends Builder {
     }
 
     public ListBoxModel doFillCredentialsIdItems(@AncestorInPath Item project) {
-      AbstractIdCredentialsListBoxModel result = new StandardListBoxModel();
-      List<UsernamePasswordCredentials> credentialsList = CredentialsProvider
-          .lookupCredentials(UsernamePasswordCredentials.class, project, ACL.SYSTEM);
-      for (UsernamePasswordCredentials credential : credentialsList) {
-        result = result.with((IdCredentials) credential);
-      }
-      return result;
+      return JenkinsHelpers.fillCredentialsIdItems(project);
     }
 
-
+    @POST
     public FormValidation doTestConnection(
         @QueryParameter("credentialsId") final String credentialsId,
         @QueryParameter("gitApiUrl") final String gitApiUrl, @AncestorInPath Item context) {
-      try {
-        GitHubHelper.getGitHubIfValid(credentialsId, gitApiUrl, JenkinsHelpers.getProxy(gitApiUrl),
-            context);
-        return FormValidation.ok("Success");
-      } catch (Exception e) {
-        return FormValidation.error(e.getMessage());
-      }
+      return GitHubHelper.testApiConnection(credentialsId, gitApiUrl, context);
     }
   }
 }
