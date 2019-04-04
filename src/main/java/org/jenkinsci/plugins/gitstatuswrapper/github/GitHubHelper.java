@@ -21,7 +21,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
  */
-package org.jenkinsci.plugins.github;
+package org.jenkinsci.plugins.gitstatuswrapper.github;
 
 import com.cloudbees.plugins.credentials.common.UsernamePasswordCredentials;
 import hudson.model.Item;
@@ -33,8 +33,7 @@ import jenkins.scm.api.SCMRevision;
 import jenkins.scm.api.SCMRevisionAction;
 import jenkins.scm.api.SCMSource;
 import jenkins.scm.api.SCMSourceOwner;
-import org.apache.commons.lang.StringUtils;
-import org.jenkinsci.plugins.credentials.CredentialsHelper;
+import org.jenkinsci.plugins.gitstatuswrapper.credentials.CredentialsHelper;
 import org.jenkinsci.plugins.github.util.BuildDataHelper;
 import org.jenkinsci.plugins.github_branch_source.GitHubSCMSource;
 import org.jenkinsci.plugins.github_branch_source.PullRequestSCMRevision;
@@ -47,19 +46,27 @@ import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.net.Proxy;
 
+import org.jenkinsci.plugins.gitstatuswrapper.Messages;
+
 public class GitHubHelper {
 
   public static final String DEFAULT_GITHUB_API_URL = "https://api.github.com";
 
-  public static final String CREDENTIALS_ID_NOT_EXISTS = "The credentialsId does not seem to exist, please check it";
-  public static final String NULL_CREDENTIALS_ID = "Credentials ID is null or empty";
-  public static final String CREDENTIALS_LOGIN_INVALID = "The supplied credentials are invalid to login";
-  public static final String INVALID_REPO = "The specified repository does not exist for the specified account";
-  public static final String INVALID_COMMIT = "The specified commit does not exist in the specified repository";
+  public static final String CREDENTIALS_ID_NOT_EXISTS = Messages
+      .GitHubHelper_CREDENTIALS_ID_NOT_EXISTS();
+  public static final String NULL_CREDENTIALS_ID = Messages.GitHubHelper_NULL_CREDENTIALS_ID();
+  public static final String CREDENTIALS_LOGIN_INVALID = Messages
+      .GitHubHelper_CREDENTIALS_LOGIN_INVALID();
+  public static final String INVALID_REPO = Messages.GitHubHelper_INVALID_REPO();
+  public static final String INVALID_COMMIT = Messages.GitHubHelper_INVALID_COMMIT();
 
-  public static final String UNABLE_TO_INFER_DATA = "Unable to infer git data, please specify repo, credentialsId, account and sha values";
-  public static final String UNABLE_TO_INFER_COMMIT = "Could not infer exact commit to use, please specify one";
-  public static final String UNABLE_TO_INFER_CREDENTIALS_ID = "Can not infer exact credentialsId to use, please specify one";
+  public static final String UNABLE_TO_INFER_DATA = Messages.GitHubHelper_UNABLE_TO_INFER_DATA();
+  public static final String UNABLE_TO_INFER_COMMIT = Messages
+      .GitHubHelper_UNABLE_TO_INFER_COMMIT();
+  public static final String UNABLE_TO_INFER_CREDENTIALS_ID = Messages
+      .GitHubHelper_UNABLE_TO_INFER_CREDENTIALS_ID();
+
+  public static final String GIT_SCM_COMMIT_ENV_NAME = "GIT_COMMIT";
 
   public static GitHub getGitHubIfValid(String credentialsId, @Nonnull String gitApiUrl,
       Proxy proxy, Item context) throws IOException {

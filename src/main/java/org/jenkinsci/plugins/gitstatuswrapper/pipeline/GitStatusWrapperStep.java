@@ -37,14 +37,11 @@ import hudson.security.ACL;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
 import jenkins.YesNoMaybe;
-import jenkins.plugins.git.AbstractGitSCMSource;
-import jenkins.scm.api.SCMRevision;
-import jenkins.scm.api.SCMRevisionAction;
 import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.plugins.displayurlapi.DisplayURLProvider;
-import org.jenkinsci.plugins.github.GitHubHelper;
-import org.jenkinsci.plugins.github_branch_source.PullRequestSCMRevision;
-import org.jenkinsci.plugins.jenkins.JenkinsHelpers;
+import org.jenkinsci.plugins.gitstatuswrapper.Messages;
+import org.jenkinsci.plugins.gitstatuswrapper.github.GitHubHelper;
+import org.jenkinsci.plugins.gitstatuswrapper.jenkins.JenkinsHelpers;
 import org.jenkinsci.plugins.workflow.steps.*;
 import org.kohsuke.github.GHCommit;
 import org.kohsuke.github.GHCommitState;
@@ -205,12 +202,12 @@ public final class GitStatusWrapperStep extends Step {
 
     @Override
     public String getFunctionName() {
-      return "gitStatusWrapper";
+      return Messages.GitStatusWrapper_FUNCTION_NAME();
     }
 
     @Override
     public String getDisplayName() {
-      return "gitStatusWrapper";
+      return Messages.GitStatusWrapper_DISPLAY_NAME();
     }
 
     @Override
@@ -246,9 +243,7 @@ public final class GitStatusWrapperStep extends Step {
   public static final class ExecutionImpl extends StepExecution {
 
     private static final Logger LOGGER = Logger.getLogger(ExecutionImpl.class.getName());
-    public static final String UNABLE_TO_INFER_DATA = "Unable to infer git data, please specify repo, credentialsId, account and sha values";
-    public static final String UNABLE_TO_INFER_COMMIT = "Could not infer exact commit to use, please specify one";
-    public static final String UNABLE_TO_INFER_CREDENTIALS_ID = "Can not infer exact credentialsId to use, please specify one";
+    public static final String UNABLE_TO_INFER_COMMIT = Messages.GitHubHelper_UNABLE_TO_INFER_COMMIT();
 
     private final transient GitStatusWrapperStep step;
     private transient BodyExecution body;
@@ -298,7 +293,7 @@ public final class GitStatusWrapperStep extends Step {
 
     public void setStatus(GHCommitState state) throws IOException {
       listener.getLogger().println(
-          String.format("[GitStatusWrapper] - Setting %s status for %s on commit %s",
+          String.format(Messages.GitStatusWrapper_PRIMARY_LOG_TEMPLATE(),
               state.toString(),
               this.step.getGitHubContext(), commit.getSHA1())
       );
@@ -329,8 +324,8 @@ public final class GitStatusWrapperStep extends Step {
         try {
           return GitHubHelper.inferBuildCommitSHA1(run);
         } catch (Exception e) {
-          if (!StringUtils.isEmpty(step.env.get("GIT_COMMIT"))) {
-            return step.env.get("GIT_COMMIT");
+          if (!StringUtils.isEmpty(step.env.get(GitHubHelper.GIT_SCM_COMMIT_ENV_NAME))) {
+            return step.env.get(GitHubHelper.GIT_SCM_COMMIT_ENV_NAME);
           } else {
             throw new IllegalArgumentException(UNABLE_TO_INFER_COMMIT);
           }

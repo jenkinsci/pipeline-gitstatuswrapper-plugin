@@ -36,11 +36,11 @@ import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
 import hudson.util.VariableResolver;
 import java.util.ArrayList;
-import java.util.Collection;
 import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.plugins.displayurlapi.DisplayURLProvider;
-import org.jenkinsci.plugins.github.GitHubHelper;
-import org.jenkinsci.plugins.jenkins.JenkinsHelpers;
+import org.jenkinsci.plugins.gitstatuswrapper.Messages;
+import org.jenkinsci.plugins.gitstatuswrapper.github.GitHubHelper;
+import org.jenkinsci.plugins.gitstatuswrapper.jenkins.JenkinsHelpers;
 import org.kohsuke.github.GHCommit;
 import org.kohsuke.github.GHCommitState;
 import org.kohsuke.github.GHRepository;
@@ -55,7 +55,7 @@ import java.util.List;
 public class GitStatusWrapperBuilder extends Builder {
 
   public List<BuildStep> getBuildSteps() {
-    if (buildSteps == null){
+    if (buildSteps == null) {
       return new ArrayList<>();
     }
 
@@ -63,8 +63,6 @@ public class GitStatusWrapperBuilder extends Builder {
   }
 
   private List<BuildStep> buildSteps;
-
-  public static final String GIT_COMMIT_VAR = "${GIT_COMMIT}";
 
   public String getGitHubContext() {
     return gitHubContext;
@@ -210,7 +208,7 @@ public class GitStatusWrapperBuilder extends Builder {
       ghContext = Util.replaceMacro(this.gitHubContext, vr);
       ghContext = env.expand(ghContext);
     } else {
-      ghContext = "gitStatusWrapper";
+      ghContext = Messages.GitStatusWrapper_FUNCTION_NAME();
     }
 
     if (!StringUtils.isEmpty(this.account)) {
@@ -302,7 +300,7 @@ public class GitStatusWrapperBuilder extends Builder {
       String ghTargetURL, GHRepository repository, GHCommit commit, GHCommitState failure)
       throws IOException {
     listener.getLogger().println(
-        String.format("[GitStatusWrapper] - Setting %s status for %s on commit %s",
+        String.format(Messages.GitStatusWrapper_PRIMARY_LOG_TEMPLATE(),
             failure,
             ghContext, commit.getSHA1())
     );
@@ -329,8 +327,8 @@ public class GitStatusWrapperBuilder extends Builder {
   }
 
   /**
-   * Descriptor for {@link GitStatusWrapperBuilder}. The class is marked as public so that
-   * it can be accessed from views.
+   * Descriptor for {@link GitStatusWrapperBuilder}. The class is marked as public so that it can be
+   * accessed from views.
    */
   @Extension
   public static final class DescriptorImpl
@@ -348,7 +346,7 @@ public class GitStatusWrapperBuilder extends Builder {
 
     @Override
     public String getDisplayName() {
-      return "GitStatusWrapper";
+      return Messages.GitStatusWrapper_DISPLAY_NAME();
     }
 
     public ListBoxModel doFillCredentialsIdItems(@AncestorInPath Item project) {
