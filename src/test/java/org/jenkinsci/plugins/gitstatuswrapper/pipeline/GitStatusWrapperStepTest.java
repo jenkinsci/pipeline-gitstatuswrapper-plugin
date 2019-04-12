@@ -41,20 +41,20 @@ public class GitStatusWrapperStepTest {
                   "credentialsId: 'dummy', description: 'OK', " +
                   "repo: 'myRepo', sha: '439ac0b0c4870bf5936e84940d73128db905e93d', " +
                   "targetUrl: 'http://www.someTarget.com') " +
-                  "{ sh 'echo "+ SUCCESSFUL_LOG_MSG + "' }}";
+                  "{ echo '"+ SUCCESSFUL_LOG_MSG + "' }}";
 
   public static final String SUCCESS_JENKINS_ENTERPRISE_PAYLOAD =
       "node { gitStatusWrapper( account: 'myAccount', gitHubContext: 'status/context', " +
           "credentialsId: 'dummy', description: 'OK', " +
           "repo: 'myRepo', sha: '439ac0b0c4870bf5936e84940d73128db905e93d', " +
           "targetUrl: 'http://www.someTarget.com', gitApiUrl: 'https://api.example.com') " +
-          "{ sh 'echo "+ SUCCESSFUL_LOG_MSG + "' }}";
+          "{ echo '"+ SUCCESSFUL_LOG_MSG + "' }}";
 
   public static final String FAIL_JENKINS_PAYLOAD_BAD_BLOCK =
       "node { gitStatusWrapper( account: 'myAccount', gitHubContext: 'status/context', " +
           "credentialsId: 'dummy', description: 'OK', " +
           "repo: 'myRepo', sha: '439ac0b0c4870bf5936e84940d73128db905e93d', " +
-          "targetUrl: 'http://www.someTarget.com') { sh 'exit 1' }}";
+          "targetUrl: 'http://www.someTarget.com') { error 'exit 1' }}";
 
   @Rule
   public JenkinsRule jenkins = new JenkinsRule();
