@@ -231,6 +231,7 @@ public final class GitStatusWrapperStep extends Step {
   }
 
   public static final class ExecutionImpl extends StepExecution {
+    private static final long serialVersionUID = 1L;
 
     private static final Logger LOGGER = Logger.getLogger(ExecutionImpl.class.getName());
     public static final String UNABLE_TO_INFER_COMMIT = Messages.GitHubHelper_UNABLE_TO_INFER_COMMIT();
