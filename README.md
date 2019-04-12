@@ -1,4 +1,5 @@
 # Pipeline Git Status Wrapper Plugin
+[![Build Status](https://ci.jenkins.io/job/Plugins/job/pipeline-gitstatuswrapper-plugin/job/master/badge/icon)](https://ci.jenkins.io/job/Plugins/job/pipeline-gitstatuswrapper-plugin/job/master/)
 
 This plugin lets you wrap a block of commands with `gitStatusWrapper`, which handles updating GitHub statuses automatically!
 
