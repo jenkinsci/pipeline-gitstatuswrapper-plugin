@@ -16,6 +16,20 @@
     <name>GitHub Status Wrapper Plugin</name>
     <description>Plugin that provides wrappers for github statuses</description>
 
+    <url>https://wiki.jenkins.io/display/JENKINS/GitStatusWrapper+Plugin</url>
+
+    <developers>
+        <developer>
+            <id>hello_woof</id>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:ssh://github.com/jenkinsci/pipeline-gitstatuswrapper-plugin.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/jenkinsci/pipeline-gitstatuswrapper-plugin.git</developerConnection>
+        <url>https://github.com/jenkinsci/pipeline-gitstatuswrapper-plugin</url>
+    </scm>
+
     <properties>
         <java.level>8</java.level>
         <jenkins.version>2.150.3</jenkins.version>
