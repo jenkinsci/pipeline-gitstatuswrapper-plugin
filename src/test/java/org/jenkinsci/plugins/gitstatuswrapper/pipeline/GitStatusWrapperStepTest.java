@@ -37,10 +37,11 @@ public class GitStatusWrapperStepTest {
   public static final String SUCCESSFUL_LOG_MSG = "Successful Log!";
 
   public static final String SUCCESS_JENKINS_PAYLOAD =
-      "node { gitStatusWrapper( account: 'myAccount', gitHubContext: 'status/context', " +
-          "credentialsId: 'dummy', description: 'OK', " +
-          "repo: 'myRepo', sha: '439ac0b0c4870bf5936e84940d73128db905e93d', " +
-          "targetUrl: 'http://www.someTarget.com') { echo '"+ SUCCESSFUL_LOG_MSG + "' }}";
+          "node { gitStatusWrapper( account: 'myAccount', gitHubContext: 'status/context', " +
+                  "credentialsId: 'dummy', description: 'OK', " +
+                  "repo: 'myRepo', sha: '439ac0b0c4870bf5936e84940d73128db905e93d', " +
+                  "targetUrl: 'http://www.someTarget.com') " +
+                  "{ echo '"+ SUCCESSFUL_LOG_MSG + "' }}";
 
   public static final String SUCCESS_JENKINS_ENTERPRISE_PAYLOAD =
       "node { gitStatusWrapper( account: 'myAccount', gitHubContext: 'status/context', " +
@@ -53,7 +54,7 @@ public class GitStatusWrapperStepTest {
       "node { gitStatusWrapper( account: 'myAccount', gitHubContext: 'status/context', " +
           "credentialsId: 'dummy', description: 'OK', " +
           "repo: 'myRepo', sha: '439ac0b0c4870bf5936e84940d73128db905e93d', " +
-          "targetUrl: 'http://www.someTarget.com') { sh 'exit 1' }}";
+          "targetUrl: 'http://www.someTarget.com') { error 'exit 1' }}";
 
   @Rule
   public JenkinsRule jenkins = new JenkinsRule();
@@ -97,7 +98,8 @@ public class GitStatusWrapperStepTest {
     GHCommit commit = statusWrapperTestObj.getCommit();
     GHRepository repo = statusWrapperTestObj.getRepo();
 
-    PowerMockito.when((repo.getCommit(anyString()))).thenReturn(commit);
+    PowerMockito.when(commit.getSHA1()).thenReturn("abc123");
+    PowerMockito.when(repo.getCommit(anyString())).thenReturn(commit);
     PowerMockito.when((repo.createCommitStatus(anyString(), any(GHCommitState.class), anyString(), anyString(), anyString()))).thenReturn(null);
 
     PowerMockito.when(user.getRepository(anyString())).thenReturn(repo);
