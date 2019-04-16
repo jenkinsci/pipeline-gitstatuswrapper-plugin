@@ -25,6 +25,7 @@ package org.jenkinsci.plugins.gitstatuswrapper.pipeline;
 
 import hudson.EnvVars;
 import hudson.Extension;
+import hudson.FilePath;
 import hudson.model.Item;
 import hudson.model.Run;
 import hudson.model.TaskListener;
@@ -37,6 +38,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.annotation.Nonnull;
 import jenkins.YesNoMaybe;
 import org.apache.commons.lang.StringUtils;
@@ -44,6 +47,7 @@ import org.jenkinsci.plugins.displayurlapi.DisplayURLProvider;
 import org.jenkinsci.plugins.gitstatuswrapper.Messages;
 import org.jenkinsci.plugins.gitstatuswrapper.github.GitHubHelper;
 import org.jenkinsci.plugins.gitstatuswrapper.jenkins.JenkinsHelpers;
+import org.jenkinsci.plugins.tokenmacro.MacroEvaluationException;
 import org.jenkinsci.plugins.workflow.steps.BodyExecution;
 import org.jenkinsci.plugins.workflow.steps.BodyExecutionCallback;
 import org.jenkinsci.plugins.workflow.steps.EnvironmentExpander;
@@ -104,6 +108,23 @@ public final class GitStatusWrapperStep extends Step {
    * Status.
    */
   private String targetUrl = "";
+
+  /**
+   * Optional variables to set the status description to upon Success
+   *
+   * This variable can also be a regex pattern if the string is wrapped in '/', ex: /(.*)/
+   *
+   * Defaults to description if empty
+   */
+  private String successDescription = "";
+  /**
+   * Optional variables to set the status description to upon Failure
+   *
+   * This variable can also be a regex pattern if the string is wrapped in '/', ex: /(.*)/
+   *
+   * Defaults to description if empty
+   */
+  private String failureDescription = "";
 
 
   public String getGitHubContext() {
@@ -184,6 +205,23 @@ public final class GitStatusWrapperStep extends Step {
     this.account = account;
   }
 
+  public String getSuccessDescription() {
+    return StringUtils.isEmpty(successDescription) ? this.getDescription() : successDescription;
+  }
+
+  @DataBoundSetter
+  public void setSuccessDescription(String successDescription) {
+    this.successDescription = successDescription;
+  }
+
+  public String getFailureDescription() {
+    return StringUtils.isEmpty(failureDescription) ? this.getDescription() : failureDescription;
+  }
+
+  @DataBoundSetter
+  public void setFailureDescription(String failureDescription) {
+    this.failureDescription = failureDescription;
+  }
 
   @DataBoundConstructor
   public GitStatusWrapperStep() {
@@ -231,10 +269,12 @@ public final class GitStatusWrapperStep extends Step {
   }
 
   public static final class ExecutionImpl extends StepExecution {
+
     private static final long serialVersionUID = 1L;
 
     private static final Logger LOGGER = Logger.getLogger(ExecutionImpl.class.getName());
-    public static final String UNABLE_TO_INFER_COMMIT = Messages.GitHubHelper_UNABLE_TO_INFER_COMMIT();
+    public static final String UNABLE_TO_INFER_COMMIT = Messages
+        .GitHubHelper_UNABLE_TO_INFER_COMMIT();
 
     private final transient GitStatusWrapperStep step;
     private transient BodyExecution body;
@@ -244,6 +284,7 @@ public final class GitStatusWrapperStep extends Step {
     public transient GHCommit commit;
 
     public transient TaskListener listener;
+    public transient FilePath workspace;
 
     protected ExecutionImpl(@Nonnull StepContext context, GitStatusWrapperStep step) {
       super(context);
@@ -255,6 +296,7 @@ public final class GitStatusWrapperStep extends Step {
     public boolean start() throws Exception {
       run = getContext().get(Run.class);
       listener = getContext().get(TaskListener.class);
+      workspace = getContext().get(FilePath.class);
 
       this.step.setSha(this.getSha());
       this.step.setRepo(this.getRepo());
@@ -282,15 +324,55 @@ public final class GitStatusWrapperStep extends Step {
       return false;
     }
 
-    public void setStatus(GHCommitState state) throws IOException {
+    public void setStatus(GHCommitState state)
+        throws IOException {
       listener.getLogger().println(
           String.format(Messages.GitStatusWrapper_PRIMARY_LOG_TEMPLATE(),
               state.toString(),
               this.step.getGitHubContext(), commit.getSHA1())
       );
+      String description = getDescriptionForState(state);
+
       this.repository.createCommitStatus(commit.getSHA1(),
-          state, this.step.getTargetUrl(), this.step.getDescription(),
+          state, this.step.getTargetUrl(), description,
           this.step.getGitHubContext());
+    }
+
+    /***
+     * get the description for the git status
+     * resolve regex if it was set
+     *
+     * @param state Pending/Success/Failure
+     * @return
+     * @throws InterruptedException
+     * @throws MacroEvaluationException
+     * @throws IOException
+     */
+    private String getDescriptionForState(final GHCommitState state)
+        throws IOException {
+      if (state == GHCommitState.PENDING) {
+        return this.step.getDescription();
+      }
+
+      String description = state == GHCommitState.SUCCESS ? this.step.getSuccessDescription()
+          : this.step.getFailureDescription();
+
+      String result = description;
+      if (description.startsWith("/") && description.endsWith("/")) {
+        //Regex pattern found, resolve
+        String descRegex = description.substring(1, description.length() - 1);
+        final String buildLog = JenkinsHelpers.getBuildLogOutput(run);
+        Matcher matcher = Pattern.compile(descRegex, Pattern.MULTILINE).matcher(buildLog);
+        if (matcher.find()) {
+          result = matcher.group(1);
+        } else {
+          listener.getLogger().println(
+              String.format(Messages.GitStatusWrapper_FAIL_TO_MATCH_REGEX(), descRegex)
+          );
+        }
+      }
+
+      return result;
     }
 
 

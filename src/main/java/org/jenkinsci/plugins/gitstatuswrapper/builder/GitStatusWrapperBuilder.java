@@ -40,11 +40,14 @@ import hudson.util.VariableResolver;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.plugins.displayurlapi.DisplayURLProvider;
 import org.jenkinsci.plugins.gitstatuswrapper.Messages;
 import org.jenkinsci.plugins.gitstatuswrapper.github.GitHubHelper;
 import org.jenkinsci.plugins.gitstatuswrapper.jenkins.JenkinsHelpers;
+import org.jenkinsci.plugins.tokenmacro.MacroEvaluationException;
 import org.kohsuke.github.GHCommit;
 import org.kohsuke.github.GHCommitState;
 import org.kohsuke.github.GHRepository;
@@ -55,6 +58,10 @@ import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.verb.POST;
 
 public class GitStatusWrapperBuilder extends Builder {
+
+  private AbstractBuild<?, ?> build;
+  private BuildListener listener;
+  private GitStatusWrapperBuilder statusWrapperData;
 
   public List<BuildStep> getBuildSteps() {
     if (buildSteps == null) {
@@ -146,6 +153,23 @@ public class GitStatusWrapperBuilder extends Builder {
     return this.credentialsId;
   }
 
+  public String getSuccessDescription() {
+    return StringUtils.isEmpty(successDescription) ? this.getDescription() : successDescription;
+  }
+
+  @DataBoundSetter
+  public void setSuccessDescription(String successDescription) {
+    this.successDescription = successDescription;
+  }
+
+  public String getFailureDescription() {
+    return StringUtils.isEmpty(failureDescription) ? this.getDescription() : failureDescription;
+  }
+
+  @DataBoundSetter
+  public void setFailureDescription(String failureDescription) {
+    this.failureDescription = failureDescription;
+  }
 
   /**
    * A string label to differentiate the send status from the status of other systems.
@@ -190,6 +214,22 @@ public class GitStatusWrapperBuilder extends Builder {
    * UsernamePassword credential
    */
   private String credentialsId;
+  /**
+   * Optional variables to set the status description to upon Success
+   *
+   * This variable can also be a regex pattern if the string is wrapped in '/', ex: /(.*)/
+   *
+   * Defaults to description if empty
+   */
+  private String successDescription = "";
+  /**
+   * Optional variables to set the status description to upon Failure
+   *
+   * This variable can also be a regex pattern if the string is wrapped in '/', ex: /(.*)/
+   *
+   * Defaults to description if empty
+   */
+  private String failureDescription = "";
 
   @DataBoundConstructor
   public GitStatusWrapperBuilder(List<BuildStep> buildSteps) {
@@ -198,80 +238,70 @@ public class GitStatusWrapperBuilder extends Builder {
     }
   }
 
+  private String resolveEnvOrDefault(String toResolve, String defaultString, EnvVars env,
+      VariableResolver<String> vr) {
+    String resolved = defaultString;
+
+    if (!StringUtils.isEmpty(toResolve)) {
+      resolved = Util.replaceMacro(toResolve, vr);
+      resolved = env.expand(resolved);
+    }
+
+    return resolved;
+  }
+
   @Override
   public boolean perform(AbstractBuild<?, ?> build, Launcher launcher, BuildListener listener)
       throws InterruptedException, IOException {
+    this.build = build;
+    this.listener = listener;
 
     VariableResolver<String> vr = build.getBuildVariableResolver();
     EnvVars env = build.getEnvironment(listener);
-    String ghContext, ghAccount, ghRepo, ghSHA, ghDescription, ghTargetURL, ghApiURL, ghCrentialsId;
 
-    if (!StringUtils.isEmpty(this.gitHubContext)) {
-      ghContext = Util.replaceMacro(this.gitHubContext, vr);
-      ghContext = env.expand(ghContext);
-    } else {
-      ghContext = Messages.GitStatusWrapper_FUNCTION_NAME();
+    statusWrapperData = new GitStatusWrapperBuilder(this.buildSteps);
+
+    statusWrapperData.setGitHubContext(
+        resolveEnvOrDefault(this.gitHubContext, Messages.GitStatusWrapper_FUNCTION_NAME(), env,
+            vr));
+    statusWrapperData.setAccount(resolveEnvOrDefault(this.account, "", env, vr));
+    if (statusWrapperData.getAccount().isEmpty()) {
+      statusWrapperData.setAccount(GitHubHelper.inferBuildAccount(build));
     }
 
-    if (!StringUtils.isEmpty(this.account)) {
-      ghAccount = Util.replaceMacro(this.account, vr);
-      ghAccount = env.expand(ghAccount);
-    } else {
-      ghAccount = GitHubHelper.inferBuildAccount(build);
+    statusWrapperData.setRepo(resolveEnvOrDefault(this.repo, "", env, vr));
+    if (statusWrapperData.getRepo().isEmpty()) {
+      statusWrapperData.setRepo(GitHubHelper.inferBuildRepo(build));
     }
 
-    if (!StringUtils.isEmpty(this.repo)) {
-      ghRepo = Util.replaceMacro(this.repo, vr);
-      ghRepo = env.expand(ghRepo);
-    } else {
-      ghRepo = GitHubHelper.inferBuildRepo(build);
+    statusWrapperData.setSha(resolveEnvOrDefault(this.sha, "", env, vr));
+    if (statusWrapperData.getSha().isEmpty()) {
+      statusWrapperData.setSha(GitHubHelper.inferBuildCommitSHA1(build));
     }
 
-    if (!StringUtils.isEmpty(this.sha)) {
-      ghSHA = Util.replaceMacro(this.sha, vr);
-      ghSHA = env.expand(ghSHA);
-    } else {
-      ghSHA = GitHubHelper.inferBuildCommitSHA1(build);
+    statusWrapperData.setCredentialsId(resolveEnvOrDefault(this.credentialsId, "", env, vr));
+    if (statusWrapperData.getCredentialsId().isEmpty()) {
+      statusWrapperData.setCredentialsId(GitHubHelper.inferBuildCredentialsId(build));
     }
 
-    if (!StringUtils.isEmpty(this.description)) {
-      ghDescription = Util.replaceMacro(this.description, vr);
-      ghDescription = env.expand(ghDescription);
-    } else {
-      ghDescription = "";
-    }
-
-    if (!StringUtils.isEmpty(this.targetUrl)) {
-      ghTargetURL = Util.replaceMacro(this.targetUrl, vr);
-      ghTargetURL = env.expand(ghTargetURL);
-    } else {
-      ghTargetURL = DisplayURLProvider.get().getRunURL(build);
-    }
-
-    if (!StringUtils.isEmpty(this.gitApiUrl)) {
-      ghApiURL = Util.replaceMacro(this.gitApiUrl, vr);
-      ghApiURL = env.expand(ghApiURL);
-    } else {
-      ghApiURL = GitHubHelper.DEFAULT_GITHUB_API_URL;
-    }
-
-    if (!StringUtils.isEmpty(this.credentialsId)) {
-      ghCrentialsId = Util.replaceMacro(this.credentialsId, vr);
-      ghCrentialsId = env.expand(ghCrentialsId);
-    } else {
-      ghCrentialsId = GitHubHelper.inferBuildCredentialsId(build);
-    }
+    statusWrapperData.setDescription(resolveEnvOrDefault(this.description, "", env, vr));
+    statusWrapperData.setTargetUrl(
+        resolveEnvOrDefault(this.targetUrl, DisplayURLProvider.get().getRunURL(build), env, vr));
+    statusWrapperData.setGitApiUrl(
+        resolveEnvOrDefault(this.gitApiUrl, GitHubHelper.DEFAULT_GITHUB_API_URL, env, vr));
+    statusWrapperData.setSuccessDescription(
+        resolveEnvOrDefault(this.successDescription, this.description, env, vr));
+    statusWrapperData.setFailureDescription(
+        resolveEnvOrDefault(this.failureDescription, this.description, env, vr));
 
     GHRepository repository = GitHubHelper
-        .getRepoIfValid(ghCrentialsId, ghApiURL, JenkinsHelpers.getProxy(ghApiURL), ghAccount,
-            ghRepo, build.getParent());
+        .getRepoIfValid(statusWrapperData.credentialsId, statusWrapperData.gitApiUrl,
+            JenkinsHelpers.getProxy(statusWrapperData.gitApiUrl), statusWrapperData.account,
+            statusWrapperData.repo, build.getParent());
 
-    GHCommit commit = GitHubHelper
-        .getCommitIfValid(ghCrentialsId, ghApiURL, JenkinsHelpers.getProxy(ghApiURL), ghAccount,
-            ghRepo, ghSHA, build.getParent());
+    GHCommit commit = repository.getCommit(statusWrapperData.sha);
 
-    setStatus(listener, ghContext, ghDescription, ghTargetURL, repository, commit,
-        GHCommitState.PENDING);
+    setStatus(listener, repository, commit, GHCommitState.PENDING);
 
     boolean everyStepSuccessful = true;
 
@@ -283,32 +313,68 @@ public class GitStatusWrapperBuilder extends Builder {
         }
       }
     } catch (IOException | InterruptedException ioe) {
-      setStatus(listener, ghContext, ghDescription, ghTargetURL, repository, commit,
-          GHCommitState.FAILURE);
+      setStatus(listener, repository, commit, GHCommitState.FAILURE);
       throw ioe;
     }
 
     if (everyStepSuccessful) {
-      setStatus(listener, ghContext, ghDescription, ghTargetURL, repository, commit,
-          GHCommitState.SUCCESS);
+      setStatus(listener, repository, commit, GHCommitState.SUCCESS);
     } else {
-      setStatus(listener, ghContext, ghDescription, ghTargetURL, repository, commit,
-          GHCommitState.FAILURE);
+      setStatus(listener, repository, commit, GHCommitState.FAILURE);
     }
     return everyStepSuccessful;
   }
 
-  private void setStatus(BuildListener listener, String ghContext, String ghDescription,
-      String ghTargetURL, GHRepository repository, GHCommit commit, GHCommitState failure)
+  private void setStatus(BuildListener listener, GHRepository repository, GHCommit commit,
+      GHCommitState state)
       throws IOException {
     listener.getLogger().println(
         String.format(Messages.GitStatusWrapper_PRIMARY_LOG_TEMPLATE(),
-            failure,
-            ghContext, commit.getSHA1())
+            state,
+            statusWrapperData.getGitHubContext(), commit.getSHA1())
     );
+
+    String description = getDescriptionForState(state);
+
     repository.createCommitStatus(commit.getSHA1(),
-        failure, ghTargetURL, ghDescription,
-        ghContext);
+        state, statusWrapperData.getTargetUrl(), description,
+        statusWrapperData.getGitHubContext());
+  }
+
+  /***
+   * get the description for the git status
+   * resolve regex if it was set
+   *
+   * @param state Pending/Success/Failure
+   * @return
+   * @throws InterruptedException
+   * @throws MacroEvaluationException
+   * @throws IOException
+   */
+  private String getDescriptionForState(final GHCommitState state)
+      throws IOException {
+    if (state == GHCommitState.PENDING) {
+      return this.getDescription();
+    }
+
+    String description = state == GHCommitState.SUCCESS ? statusWrapperData.getSuccessDescription()
+        : statusWrapperData.getFailureDescription();
+
+    String result = description;
+    if (description.startsWith("/") && description.endsWith("/")) {
+      //Regex pattern found, resolve
+      String descRegex = description.substring(1, description.length() - 1);
+      final String buildLog = JenkinsHelpers.getBuildLogOutput(build);
+      Matcher matcher = Pattern.compile(descRegex, Pattern.MULTILINE).matcher(buildLog);
+      if (matcher.find()) {
+        result = matcher.group(1);
+      } else {
+        listener.getLogger().println(
+            String.format(Messages.GitStatusWrapper_FAIL_TO_MATCH_REGEX(), descRegex));
+      }
+    }
+
+    return result;
   }
 
   /**
