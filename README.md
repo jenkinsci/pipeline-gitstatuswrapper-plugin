@@ -197,5 +197,5 @@ Use the plugin? Let us know to get your logo here!
 <div>
     <p>---------Created and Used by---------</p>
     <a href="http://opensource.intuit.com/"><img width="225" height="110" src="src/main/webapp/img/Intuit_user.png"/></a>
-    <p>----------------------------------------------</p>
+    <p>---------------------------------------</p>
 </div>
