@@ -84,29 +84,30 @@ public class JenkinsHelpers {
    * @throws IOException
    */
   public static String getBuildLogOutput(Run<?, ?> run) throws IOException {
-    BufferedReader reader = new BufferedReader(run.getLogReader());
-    StringBuilder line = new StringBuilder();
-    StringBuilder fullLog = new StringBuilder();
-    int ch;
-    // Buffer log contents including line terminators, and remove console notes
-    while ((ch = reader.read()) != -1) {
-      if (ch == '\r' || ch == '\n') {
-        if (line.length() > 0) {
-          // Remove console notes (JENKINS-7402)
-          fullLog.append(ConsoleNote.removeNotes(line.toString()));
-          line.setLength(0);
+    try (BufferedReader reader = new BufferedReader(run.getLogReader())) {
+      StringBuilder line = new StringBuilder();
+      StringBuilder fullLog = new StringBuilder();
+      int ch;
+      // Buffer log contents including line terminators, and remove console notes
+      while ((ch = reader.read()) != -1) {
+        if (ch == '\r' || ch == '\n') {
+          if (line.length() > 0) {
+            // Remove console notes (JENKINS-7402)
+            fullLog.append(ConsoleNote.removeNotes(line.toString()));
+            line.setLength(0);
+          }
+          fullLog.append((char) ch);
+        } else {
+          line.append((char) ch);
         }
-        fullLog.append((char) ch);
-      } else {
-        line.append((char) ch);
       }
+      // Buffer the final log line if it has no line terminator
+      if (line.length() > 0) {
+        // Remove console notes (JENKINS-7402)
+        fullLog.append(ConsoleNote.removeNotes(line.toString()));
+      }
+      return fullLog.toString();
     }
-    // Buffer the final log line if it has no line terminator
-    if (line.length() > 0) {
-      // Remove console notes (JENKINS-7402)
-      fullLog.append(ConsoleNote.removeNotes(line.toString()));
-    }
-    return fullLog.toString();
   }
 
 }
