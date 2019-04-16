@@ -28,10 +28,15 @@ import com.cloudbees.plugins.credentials.common.AbstractIdCredentialsListBoxMode
 import com.cloudbees.plugins.credentials.common.IdCredentials;
 import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
 import com.cloudbees.plugins.credentials.common.UsernamePasswordCredentials;
+import hudson.console.ConsoleNote;
+import hudson.model.AbstractBuild;
 import hudson.model.Item;
 import hudson.model.Job;
+import hudson.model.Run;
 import hudson.security.ACL;
 import hudson.util.ListBoxModel;
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.util.List;
 import jenkins.model.Jenkins;
 
@@ -61,7 +66,7 @@ public class JenkinsHelpers {
     }
   }
 
-  public static ListBoxModel fillCredentialsIdItems(Item project){
+  public static ListBoxModel fillCredentialsIdItems(Item project) {
     Jenkins.get().checkPermission(Job.CONFIGURE);
     AbstractIdCredentialsListBoxModel result = new StandardListBoxModel();
     List<UsernamePasswordCredentials> credentialsList = CredentialsProvider
@@ -72,5 +77,37 @@ public class JenkinsHelpers {
     return result;
   }
 
+  /***
+   * Get the full build log from the Run object
+   * @param run jenkins run class
+   * @return String of the entire build log
+   * @throws IOException
+   */
+  public static String getBuildLogOutput(Run<?, ?> run) throws IOException {
+    try (BufferedReader reader = new BufferedReader(run.getLogReader())) {
+      StringBuilder line = new StringBuilder();
+      StringBuilder fullLog = new StringBuilder();
+      int ch;
+      // Buffer log contents including line terminators, and remove console notes
+      while ((ch = reader.read()) != -1) {
+        if (ch == '\r' || ch == '\n') {
+          if (line.length() > 0) {
+            // Remove console notes (JENKINS-7402)
+            fullLog.append(ConsoleNote.removeNotes(line.toString()));
+            line.setLength(0);
+          }
+          fullLog.append((char) ch);
+        } else {
+          line.append((char) ch);
+        }
+      }
+      // Buffer the final log line if it has no line terminator
+      if (line.length() > 0) {
+        // Remove console notes (JENKINS-7402)
+        fullLog.append(ConsoleNote.removeNotes(line.toString()));
+      }
+      return fullLog.toString();
+    }
+  }
 
 }

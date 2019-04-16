@@ -41,10 +41,16 @@ THE SOFTWARE.
     <f:entry field="gitHubContext" title="${%gitHubContext}">
         <f:textbox />
     </f:entry>
-    <f:entry field="description" title="${%notificationDescription}">
+    <f:entry field="description" title="${%description}">
         <f:textbox />
     </f:entry>
     <f:advanced>
+        <f:entry field="failureDescription" title="${%failureDescription}">
+            <f:textbox/>
+        </f:entry>
+        <f:entry field="successDescription" title="${%successDescription}">
+            <f:textbox/>
+        </f:entry>
         <f:entry field="targetUrl" title="${%notificationTargetUrl}">
             <f:textbox />
         </f:entry>
