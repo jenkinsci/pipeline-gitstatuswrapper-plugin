@@ -47,7 +47,6 @@ import org.jenkinsci.plugins.displayurlapi.DisplayURLProvider;
 import org.jenkinsci.plugins.gitstatuswrapper.Messages;
 import org.jenkinsci.plugins.gitstatuswrapper.github.GitHubHelper;
 import org.jenkinsci.plugins.gitstatuswrapper.jenkins.JenkinsHelpers;
-import org.jenkinsci.plugins.tokenmacro.MacroEvaluationException;
 import org.kohsuke.github.GHCommit;
 import org.kohsuke.github.GHCommitState;
 import org.kohsuke.github.GHRepository;
@@ -347,8 +346,6 @@ public class GitStatusWrapperBuilder extends Builder {
    *
    * @param state Pending/Success/Failure
    * @return
-   * @throws InterruptedException
-   * @throws MacroEvaluationException
    * @throws IOException
    */
   private String getDescriptionForState(final GHCommitState state)
