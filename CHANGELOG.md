@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.0
+Reconfigured dependencies so plugin can be run on older Jenkins versions
+
 ## 1.1.0
 Feature Adds:
 * Regex build logs for success and failure description messages
