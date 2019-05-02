@@ -188,7 +188,7 @@ public class GitHubHelper {
 
   public static FormValidation testApiConnection(final String credentialsId, final String gitApiUrl,
       Item context) {
-    Jenkins.get().checkPermission(Job.CONFIGURE);
+    Jenkins.getInstance().checkPermission(Job.CONFIGURE);
     try {
       GitHubHelper.getGitHubIfValid(credentialsId, gitApiUrl, JenkinsHelpers.getProxy(gitApiUrl),
           context);

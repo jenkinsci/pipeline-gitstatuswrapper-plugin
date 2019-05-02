@@ -236,7 +236,7 @@ public final class GitStatusWrapperStep extends Step {
   public static class DescriptorImpl extends StepDescriptor {
 
     @Override
-    public Set<? extends Class<?>> getRequiredContext() {
+    public Set<Class<?>> getRequiredContext() {
       return Collections.singleton(TaskListener.class);
     }
 

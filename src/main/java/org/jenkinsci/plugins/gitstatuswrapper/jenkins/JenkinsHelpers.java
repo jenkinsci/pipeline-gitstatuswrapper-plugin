@@ -67,7 +67,7 @@ public class JenkinsHelpers {
   }
 
   public static ListBoxModel fillCredentialsIdItems(Item project) {
-    Jenkins.get().checkPermission(Job.CONFIGURE);
+    Jenkins.getInstance().checkPermission(Job.CONFIGURE);
     AbstractIdCredentialsListBoxModel result = new StandardListBoxModel();
     List<UsernamePasswordCredentials> credentialsList = CredentialsProvider
         .lookupCredentials(UsernamePasswordCredentials.class, project, ACL.SYSTEM);
