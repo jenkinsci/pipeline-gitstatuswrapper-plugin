@@ -1,34 +1,33 @@
 package org.jenkinsci.plugins.gitstatuswrapper.pipeline;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-
 import com.cloudbees.plugins.credentials.Credentials;
 import com.cloudbees.plugins.credentials.CredentialsScope;
 import com.cloudbees.plugins.credentials.SystemCredentialsProvider;
 import hudson.model.Result;
-import java.net.Proxy;
-import org.jenkinsci.plugins.gitstatuswrapper.github.GitHubHelper;
+import org.eclipse.jgit.annotations.NonNull;
 import org.jenkinsci.plugins.gitstatuswrapper.DummyCredentials;
+import org.jenkinsci.plugins.gitstatuswrapper.github.GitHubHelper;
 import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition;
 import org.jenkinsci.plugins.workflow.job.WorkflowJob;
 import org.jenkinsci.plugins.workflow.job.WorkflowRun;
+import org.jenkinsci.plugins.workflow.test.steps.SemaphoreStep;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.jvnet.hudson.test.JenkinsRule;
-import org.kohsuke.github.GHCommit;
-import org.kohsuke.github.GHCommitState;
-import org.kohsuke.github.GHRepository;
-import org.kohsuke.github.GHUser;
-import org.kohsuke.github.GitHub;
-import org.kohsuke.github.GitHubBuilder;
+import org.jvnet.hudson.test.RestartableJenkinsRule;
+import org.kohsuke.github.*;
 import org.mockito.Matchers;
 import org.mockito.Mockito;
 import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
+
+import java.net.Proxy;
+
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 
 @RunWith(PowerMockRunner.class)
 @PrepareForTest({GitStatusWrapperStep.class, GitHubHelper.class})
@@ -56,41 +55,70 @@ public class GitStatusWrapperStepTest {
           "repo: 'myRepo', sha: '439ac0b0c4870bf5936e84940d73128db905e93d', " +
           "targetUrl: 'http://www.someTarget.com') { error 'exit 1' }}";
 
+  public static final String SUCCESS_JENKINS_RESTART_PAYLOAD =
+          "node { gitStatusWrapper( account: 'myAccount', gitHubContext: 'status/context', " +
+                  "credentialsId: 'dummy', description: 'OK', " +
+                  "repo: 'myRepo', sha: '439ac0b0c4870bf5936e84940d73128db905e93d', " +
+                  "targetUrl: 'http://www.someTarget.com') " +
+                  "{ semaphore 'wait-inside'\n };\n" +
+                  "echo '" + SUCCESSFUL_LOG_MSG + "';" +
+                  "}";
+
   @Rule
-  public JenkinsRule jenkins = new JenkinsRule();
+  public RestartableJenkinsRule jenkins = new RestartableJenkinsRule();
 
   @Test
   public void build() throws Exception {
-    successfulPluginSetup(SUCCESS_JENKINS_PAYLOAD);
+    jenkins.then((JenkinsRule j) -> {
+      successfulPluginSetup(j, SUCCESS_JENKINS_PAYLOAD);
+    });
   }
 
   @Test
   public void buildWithEnterprise() throws Exception {
-    successfulPluginSetup(SUCCESS_JENKINS_ENTERPRISE_PAYLOAD);
+    jenkins.then((JenkinsRule j) -> {
+      successfulPluginSetup(j, SUCCESS_JENKINS_ENTERPRISE_PAYLOAD);
+    });
+  }
+
+  @Test
+  public void buildWithRestart() throws Exception {
+    jenkins.then((JenkinsRule j) -> {
+      StatusWrapperTestObj statusWrapperTestObj = setupStableEnvMockObj(j, SUCCESS_JENKINS_RESTART_PAYLOAD);
+      SemaphoreStep.waitForStart("wait-inside/1", statusWrapperTestObj.getRun());
+    });
+    jenkins.then((JenkinsRule j) -> {
+      addCredentials();
+
+      WorkflowJob p = j.jenkins.getItemByFullName("p", WorkflowJob.class);
+      WorkflowRun b = p.getBuildByNumber(1);
+      SemaphoreStep.success("wait-inside/1", null);
+      j.waitForMessage(SUCCESSFUL_LOG_MSG, b);
+    });
   }
 
   @Test
   public void buildWithFailingBlockMustFail() throws Exception {
-    StatusWrapperTestObj statusWrapperTestObj = setupStableEnvMockObj(FAIL_JENKINS_PAYLOAD_BAD_BLOCK);
-
-    jenkins.assertBuildStatus(Result.FAILURE, jenkins.waitForCompletion(statusWrapperTestObj.getRun()));
-    Mockito.verify(statusWrapperTestObj.getRepo(), Mockito.times(1)).createCommitStatus(anyString(), Mockito.eq(GHCommitState.PENDING), anyString(), anyString(), anyString());
-    Mockito.verify(statusWrapperTestObj.getRepo(), Mockito.times(1)).createCommitStatus(anyString(), Mockito.eq(GHCommitState.FAILURE), anyString(), anyString(), anyString());
-    jenkins.assertLogContains("exit 1", statusWrapperTestObj.getRun());
+    jenkins.then((JenkinsRule j) -> {
+      StatusWrapperTestObj statusWrapperTestObj = setupStableEnvMockObj(j, FAIL_JENKINS_PAYLOAD_BAD_BLOCK);
+      j.assertBuildStatus(Result.FAILURE, j.waitForCompletion(statusWrapperTestObj.getRun()));
+      Mockito.verify(statusWrapperTestObj.getRepo(), Mockito.times(1)).createCommitStatus(anyString(), Mockito.eq(GHCommitState.PENDING), anyString(), anyString(), anyString());
+      Mockito.verify(statusWrapperTestObj.getRepo(), Mockito.times(1)).createCommitStatus(anyString(), Mockito.eq(GHCommitState.FAILURE), anyString(), anyString(), anyString());
+      j.assertLogContains("exit 1", statusWrapperTestObj.getRun());
+    });
   }
 
+  private StatusWrapperTestObj successfulPluginSetup(@NonNull JenkinsRule j, String jobDefinition) throws Exception {
+    StatusWrapperTestObj statusWrapperTestObj = setupStableEnvMockObj(j, jobDefinition);
 
-  private StatusWrapperTestObj successfulPluginSetup(String jobDefinition) throws Exception {
-    StatusWrapperTestObj statusWrapperTestObj = setupStableEnvMockObj(jobDefinition);
-
-    jenkins.assertBuildStatus(Result.SUCCESS, jenkins.waitForCompletion(statusWrapperTestObj.getRun()));
+    j.assertBuildStatus(Result.SUCCESS, j.waitForCompletion(statusWrapperTestObj.getRun()));
     Mockito.verify(statusWrapperTestObj.getRepo(), Mockito.times(1)).createCommitStatus(anyString(), Mockito.eq(GHCommitState.PENDING), anyString(), anyString(), anyString());
     Mockito.verify(statusWrapperTestObj.getRepo(), Mockito.times(1)).createCommitStatus(anyString(), Mockito.eq(GHCommitState.SUCCESS), anyString(), anyString(), anyString());
-    jenkins.assertLogContains(SUCCESSFUL_LOG_MSG, statusWrapperTestObj.getRun());
+    j.assertLogContains(SUCCESSFUL_LOG_MSG, statusWrapperTestObj.getRun());
     return statusWrapperTestObj;
   }
 
-  private StatusWrapperTestObj setupStableEnvMockObj(String jobDefinition) throws Exception{
+  private StatusWrapperTestObj setupStableEnvMockObj(@NonNull JenkinsRule j, String jobDefinition) throws Exception {
     StatusWrapperTestObj statusWrapperTestObj = new StatusWrapperTestObj().invoke();
     GitHubBuilder ghb = statusWrapperTestObj.getGhb();
     GitHub gh = statusWrapperTestObj.getGh();
@@ -114,16 +142,20 @@ public class GitStatusWrapperStepTest {
 
     PowerMockito.whenNew(GitHubBuilder.class).withNoArguments().thenReturn(ghb);
 
-    Credentials dummy = new DummyCredentials(CredentialsScope.GLOBAL, "user", "psw");
-    SystemCredentialsProvider.getInstance().getCredentials().add(dummy);
+    addCredentials();
 
-    WorkflowJob p = jenkins.createProject(WorkflowJob.class, "p");
+    WorkflowJob p = j.createProject(WorkflowJob.class, "p");
     p.setDefinition(new CpsFlowDefinition(
         jobDefinition, true));
 
     WorkflowRun b1 = p.scheduleBuild2(0).waitForStart();
     statusWrapperTestObj.setRun(b1);
     return statusWrapperTestObj;
+  }
+
+  private void addCredentials() {
+    Credentials dummy = new DummyCredentials(CredentialsScope.GLOBAL, "user", "psw");
+    SystemCredentialsProvider.getInstance().getCredentials().add(dummy);
   }
 
   private class StatusWrapperTestObj {
