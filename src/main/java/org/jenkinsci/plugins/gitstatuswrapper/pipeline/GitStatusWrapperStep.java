@@ -31,29 +31,13 @@ import hudson.model.Run;
 import hudson.model.TaskListener;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import javax.annotation.Nonnull;
 import jenkins.YesNoMaybe;
 import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.plugins.displayurlapi.DisplayURLProvider;
 import org.jenkinsci.plugins.gitstatuswrapper.Messages;
 import org.jenkinsci.plugins.gitstatuswrapper.github.GitHubHelper;
 import org.jenkinsci.plugins.gitstatuswrapper.jenkins.JenkinsHelpers;
-import org.jenkinsci.plugins.workflow.steps.BodyExecution;
-import org.jenkinsci.plugins.workflow.steps.BodyExecutionCallback;
-import org.jenkinsci.plugins.workflow.steps.EnvironmentExpander;
-import org.jenkinsci.plugins.workflow.steps.Step;
-import org.jenkinsci.plugins.workflow.steps.StepContext;
-import org.jenkinsci.plugins.workflow.steps.StepDescriptor;
-import org.jenkinsci.plugins.workflow.steps.StepExecution;
+import org.jenkinsci.plugins.workflow.steps.*;
 import org.kohsuke.github.GHCommit;
 import org.kohsuke.github.GHCommitState;
 import org.kohsuke.github.GHRepository;
@@ -63,10 +47,20 @@ import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.verb.POST;
 
+import javax.annotation.Nonnull;
+import java.io.IOException;
+import java.io.Serializable;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-public final class GitStatusWrapperStep extends Step {
 
-  private EnvVars env;
+public final class GitStatusWrapperStep extends Step implements Serializable {
 
   /**
    * A string label to differentiate the send status from the status of other systems.
@@ -228,7 +222,6 @@ public final class GitStatusWrapperStep extends Step {
 
   @Override
   public StepExecution start(StepContext context) throws Exception {
-    env = context.get(EnvVars.class);
     return new ExecutionImpl(context, this);
   }
 
@@ -275,15 +268,11 @@ public final class GitStatusWrapperStep extends Step {
     public static final String UNABLE_TO_INFER_COMMIT = Messages
         .GitHubHelper_UNABLE_TO_INFER_COMMIT();
 
-    private final transient GitStatusWrapperStep step;
+    private final GitStatusWrapperStep step;
     private transient BodyExecution body;
-    private transient Run run;
 
-    public transient GHRepository repository;
-    public transient GHCommit commit;
-
-    public transient TaskListener listener;
-    public transient FilePath workspace;
+    public transient GHRepository _repository;
+    public transient GHCommit _commit;
 
     protected ExecutionImpl(@Nonnull StepContext context, GitStatusWrapperStep step) {
       super(context);
@@ -293,23 +282,11 @@ public final class GitStatusWrapperStep extends Step {
 
     @Override
     public boolean start() throws Exception {
-      run = getContext().get(Run.class);
-      listener = getContext().get(TaskListener.class);
-      workspace = getContext().get(FilePath.class);
-
       this.step.setSha(this.getSha());
       this.step.setRepo(this.getRepo());
       this.step.setCredentialsId(this.getCredentialsId());
       this.step.setAccount(this.getAccount());
       this.step.setTargetUrl(this.getTargetUrl());
-
-      this.repository = GitHubHelper
-          .getRepoIfValid(this.step.getCredentialsId(), this.step.getGitApiUrl(),
-              JenkinsHelpers.getProxy(step.getGitApiUrl()), this.step.getAccount(),
-              this.step.getRepo(),
-              run.getParent());
-
-      this.commit = repository.getCommit(this.step.getSha());
 
       this.setStatus(GHCommitState.PENDING);
 
@@ -324,18 +301,48 @@ public final class GitStatusWrapperStep extends Step {
     }
 
     public void setStatus(GHCommitState state)
-        throws IOException {
-      listener.getLogger().println(
+            throws IOException, InterruptedException {
+      listener().getLogger().println(
           String.format(Messages.GitStatusWrapper_PRIMARY_LOG_TEMPLATE(),
               state.toString(),
-              this.step.getGitHubContext(), commit.getSHA1())
+                  this.step.getGitHubContext(), commit().getSHA1())
       );
       String description = getDescriptionForState(state);
 
-      this.repository.createCommitStatus(commit.getSHA1(),
+      this.repository().createCommitStatus(commit().getSHA1(),
           state, this.step.getTargetUrl(), description,
           this.step.getGitHubContext());
     }
+
+    private TaskListener listener() throws IOException, InterruptedException {
+      return getContext().get(TaskListener.class);
+    }
+
+    private Run run() throws IOException, InterruptedException {
+      return getContext().get(Run.class);
+    }
+
+    private GHCommit commit() throws IOException, InterruptedException {
+      if (_commit == null) {
+        _commit = repository().getCommit(this.step.getSha());
+      }
+      return _commit;
+    }
+
+    private EnvVars env() throws IOException, InterruptedException {
+      return getContext().get(EnvVars.class);
+    }
+
+    public GHRepository repository() throws IOException, InterruptedException {
+      if (_repository == null) {
+        _repository = GitHubHelper.getRepoIfValid(this.step.getCredentialsId(), this.step.getGitApiUrl(),
+                JenkinsHelpers.getProxy(step.getGitApiUrl()), this.step.getAccount(),
+                this.step.getRepo(),
+                run().getParent());
+      }
+      return _repository;
+    }
+
 
     /***
      * get the description for the git status
@@ -346,7 +353,7 @@ public final class GitStatusWrapperStep extends Step {
      * @throws IOException
      */
     private String getDescriptionForState(final GHCommitState state)
-        throws IOException {
+            throws IOException, InterruptedException {
       if (state == GHCommitState.PENDING) {
         return this.step.getDescription();
       }
@@ -358,12 +365,12 @@ public final class GitStatusWrapperStep extends Step {
       if (description.startsWith("/") && description.endsWith("/")) {
         //Regex pattern found, resolve
         String descRegex = description.substring(1, description.length() - 1);
-        final String buildLog = JenkinsHelpers.getBuildLogOutput(run);
+        final String buildLog = JenkinsHelpers.getBuildLogOutput(run());
         Matcher matcher = Pattern.compile(descRegex, Pattern.MULTILINE).matcher(buildLog);
         if (matcher.find()) {
           result = matcher.group(1);
         } else {
-          listener.getLogger().println(
+          listener().getLogger().println(
               String.format(Messages.GitStatusWrapper_FAIL_TO_MATCH_REGEX(), descRegex)
           );
         }
@@ -373,29 +380,29 @@ public final class GitStatusWrapperStep extends Step {
     }
 
 
-    public String getCredentialsId() {
+    public String getCredentialsId() throws IOException, InterruptedException {
       if (StringUtils.isEmpty(step.getCredentialsId())) {
-        return GitHubHelper.inferBuildCredentialsId(run);
+        return GitHubHelper.inferBuildCredentialsId(run());
       } else {
         return step.getCredentialsId();
       }
     }
 
-    public String getRepo() throws IOException {
+    public String getRepo() throws IOException, InterruptedException {
       if (StringUtils.isEmpty(step.getRepo())) {
-        return GitHubHelper.inferBuildRepo(run);
+        return GitHubHelper.inferBuildRepo(run());
       } else {
         return step.getRepo();
       }
     }
 
-    public String getSha() {
+    public String getSha() throws IOException, InterruptedException {
       if (StringUtils.isEmpty(step.getSha())) {
         try {
-          return GitHubHelper.inferBuildCommitSHA1(run);
+          return GitHubHelper.inferBuildCommitSHA1(run());
         } catch (Exception e) {
-          if (!StringUtils.isEmpty(step.env.get(GitHubHelper.GIT_SCM_COMMIT_ENV_NAME))) {
-            return step.env.get(GitHubHelper.GIT_SCM_COMMIT_ENV_NAME);
+          if (!StringUtils.isEmpty(env().get(GitHubHelper.GIT_SCM_COMMIT_ENV_NAME))) {
+            return env().get(GitHubHelper.GIT_SCM_COMMIT_ENV_NAME);
           } else {
             throw new IllegalArgumentException(UNABLE_TO_INFER_COMMIT);
           }
@@ -405,17 +412,17 @@ public final class GitStatusWrapperStep extends Step {
       }
     }
 
-    public String getTargetUrl() {
+    public String getTargetUrl() throws IOException, InterruptedException {
       if (StringUtils.isEmpty(step.getTargetUrl())) {
-        return DisplayURLProvider.get().getRunURL(run);
+        return DisplayURLProvider.get().getRunURL(run());
       } else {
         return step.getTargetUrl();
       }
     }
 
-    public String getAccount() throws IOException {
+    public String getAccount() throws IOException, InterruptedException {
       if (StringUtils.isEmpty(step.getAccount())) {
-        return GitHubHelper.inferBuildAccount(run);
+        return GitHubHelper.inferBuildAccount(run());
       } else {
         return step.getAccount();
       }
