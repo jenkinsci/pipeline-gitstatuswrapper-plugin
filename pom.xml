@@ -16,7 +16,7 @@
     <name>GitHub Status Wrapper Plugin</name>
     <description>Plugin that provides wrappers for github statuses</description>
 
-    <url>https://wiki.jenkins.io/display/JENKINS/GitStatusWrapper+Plugin</url>
+    <url>https://github.com/jenkinsci/pipeline-gitstatuswrapper-plugin</url>
 
     <developers>
         <developer>
